@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // --- OpenAI ---
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const resendApiKey = process.env.RESEND_API_KEY;
   const adminEmail = process.env.ADMIN_EMAIL || "";
@@ -18,6 +17,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "API keys not configured" }, { status: 500 });
   }
 
+  // --- GPT-4o: travel plan ---
   const prompt = `Ты — эксперт по осознанным путешествиям. Создай детальный персональный план путешествия.
 
 Путешественник: ${name} из ${country}
@@ -71,7 +71,71 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to generate plan", detail: String(err) }, { status: 500 });
   }
 
-  // --- Resend ---
+  // --- DALL-E 3: destination illustration ---
+  let imageBase64 = "";
+
+  try {
+    const dalleRes = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt: `Cinematic travel photography of ${destination}. Wide landscape, warm earthy tones, golden hour light, editorial style, no text, no people, no watermarks. Atmospheric and inspiring.`,
+        n: 1,
+        size: "1792x1024",
+        quality: "standard",
+        response_format: "b64_json",
+      }),
+    });
+
+    if (dalleRes.ok) {
+      const dalleData = await dalleRes.json();
+      imageBase64 = dalleData.data[0].b64_json;
+    } else {
+      const err = await dalleRes.text();
+      console.error("DALL-E error:", dalleRes.status, err);
+    }
+  } catch (err) {
+    console.error("DALL-E exception:", err);
+    // Non-fatal — email sends without image
+  }
+
+  // --- Build visual summary block ---
+  const styleTagsHtml = travelStyle
+    ? travelStyle.split(",").map((s: string) =>
+        `<span style="display:inline-block;border:1px solid #C4714A;color:#C4714A;font-size:11px;padding:3px 10px;margin:3px 4px 3px 0;letter-spacing:1px;text-transform:uppercase;">${s.trim()}</span>`
+      ).join("")
+    : "";
+
+  const summaryHtml = `
+<div style="background:#F5F0EB;padding:24px 40px;border-top:2px solid #C4714A;">
+  <table style="width:100%;border-collapse:collapse;">
+    <tr>
+      ${dates ? `<td style="padding:8px 20px 8px 0;vertical-align:top;">
+        <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Даты</div>
+        <div style="font-size:14px;color:#2C1F14;">${dates}</div>
+      </td>` : ""}
+      ${duration ? `<td style="padding:8px 20px 8px 0;vertical-align:top;">
+        <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Длительность</div>
+        <div style="font-size:14px;color:#2C1F14;">${duration}</div>
+      </td>` : ""}
+      <td style="padding:8px 20px 8px 0;vertical-align:top;">
+        <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Бюджет</div>
+        <div style="font-size:14px;color:#2C1F14;">${budget}</div>
+      </td>
+      <td style="padding:8px 0;vertical-align:top;">
+        <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Путешественники</div>
+        <div style="font-size:14px;color:#2C1F14;">${travelers}</div>
+      </td>
+    </tr>
+  </table>
+  ${styleTagsHtml ? `<div style="margin-top:12px;">${styleTagsHtml}</div>` : ""}
+</div>`;
+
+  // --- Build full email HTML ---
   const emailHtml = `
 <!DOCTYPE html>
 <html lang="ru">
@@ -102,6 +166,8 @@ export async function POST(req: NextRequest) {
       <div class="accent"></div>
       <p>Ваш персональный маршрут</p>
     </div>
+    ${imageBase64 ? `<img src="cid:destination_image" style="width:100%;display:block;max-height:340px;object-fit:cover;" alt="${destination}">` : ""}
+    ${summaryHtml}
     <div class="content">
       <p class="greeting">Дорогой ${name},</p>
       <p>Мы создали маршрут специально для вас — с учётом ваших пожеланий, ритма и того, что важно для вашей души.</p>
@@ -114,28 +180,45 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`;
 
-  // Email пользователю с планом
+  // --- Send email to user ---
   try {
+    const emailPayload: Record<string, unknown> = {
+      from: "Своим ходом Travel <onboarding@resend.dev>",
+      to: [email],
+      subject: `Ваш персональный маршрут в ${destination} — Своим ходом`,
+      html: emailHtml,
+    };
+
+    if (imageBase64) {
+      emailPayload.attachments = [
+        {
+          filename: "destination.jpg",
+          content: imageBase64,
+          content_type: "image/png",
+          content_id: "destination_image",
+        },
+      ];
+    }
+
     const sendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${resendApiKey}`,
       },
-      body: JSON.stringify({
-        from: "Своим ходом Travel <onboarding@resend.dev>",
-        to: [email],
-        subject: `Ваш персональный маршрут в ${destination} — Своим ходом`,
-        html: emailHtml,
-      }),
+      body: JSON.stringify(emailPayload),
     });
 
-    if (!sendRes.ok) throw new Error("Resend error");
+    if (!sendRes.ok) {
+      const err = await sendRes.text();
+      console.error("Resend error:", sendRes.status, err);
+      throw new Error("Resend error");
+    }
   } catch {
     return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
   }
 
-  // Уведомление админу с контактами лида
+  // --- Admin notification ---
   if (adminEmail) {
     const adminHtml = `
 <!DOCTYPE html>
