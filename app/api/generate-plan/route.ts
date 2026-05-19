@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 
 export async function POST(req: NextRequest) {
   const data = await req.json();
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
   }
 
   // --- DALL-E 3: destination illustration ---
-  let imageBase64 = "";
+  let imageUrl = "";
 
   try {
     const dalleRes = await fetch("https://api.openai.com/v1/images/generations", {
@@ -89,15 +90,24 @@ export async function POST(req: NextRequest) {
         model: "dall-e-3",
         prompt: `Cinematic travel photography of ${destination}. Wide landscape, warm earthy tones, golden hour light, editorial style, no text, no people, no watermarks. Atmospheric and inspiring.`,
         n: 1,
-        size: "1024x1024",
+        size: "1792x1024",
         quality: "standard",
-        response_format: "b64_json",
+        response_format: "url",
       }),
     });
 
     if (dalleRes.ok) {
       const dalleData = await dalleRes.json();
-      imageBase64 = dalleData.data[0].b64_json;
+      const tempUrl = dalleData.data[0].url;
+
+      // Fetch image bytes and upload to Vercel Blob for a permanent URL
+      const imgRes = await fetch(tempUrl);
+      const imgBuffer = await imgRes.arrayBuffer();
+      const blob = await put(`travel/${Date.now()}.png`, Buffer.from(imgBuffer), {
+        access: "public",
+        contentType: "image/png",
+      });
+      imageUrl = blob.url;
     } else {
       const err = await dalleRes.text();
       console.error("DALL-E error:", dalleRes.status, err);
@@ -170,7 +180,7 @@ export async function POST(req: NextRequest) {
       <div class="accent"></div>
       <p>Ваш персональный маршрут</p>
     </div>
-    ${imageBase64 ? `<img src="data:image/png;base64,${imageBase64}" style="width:100%;display:block;max-height:340px;object-fit:cover;" alt="${destination}">` : ""}
+    ${imageUrl ? `<img src="${imageUrl}" style="width:100%;display:block;max-height:340px;object-fit:cover;" alt="${destination}">` : ""}
     ${summaryHtml}
     <div class="content">
       <p class="greeting">Дорогой ${name},</p>
