@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`;
 
+  // Email пользователю с планом
   try {
     const sendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -124,7 +125,6 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         from: "Своим ходом Travel <onboarding@resend.dev>",
         to: [email],
-        bcc: adminEmail ? [adminEmail] : [],
         subject: `Ваш персональный маршрут в ${destination} — Своим ходом`,
         html: emailHtml,
       }),
@@ -133,6 +133,55 @@ export async function POST(req: NextRequest) {
     if (!sendRes.ok) throw new Error("Resend error");
   } catch {
     return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
+  }
+
+  // Уведомление админу с контактами лида
+  if (adminEmail) {
+    const adminHtml = `
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; color: #2C1F14; background: #f9f9f9; margin: 0; padding: 20px; }
+  .card { max-width: 560px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 32px; border: 1px solid #e0d8cc; }
+  h2 { font-size: 18px; margin: 0 0 24px; color: #0F0A07; font-weight: 400; border-bottom: 1px solid #e0d8cc; padding-bottom: 12px; }
+  .row { display: flex; margin-bottom: 12px; font-size: 14px; }
+  .label { width: 160px; flex-shrink: 0; color: #8B7355; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; padding-top: 2px; }
+  .value { color: #2C1F14; }
+  .highlight { background: #F5F0EB; border-left: 3px solid #C4714A; padding: 12px 16px; margin-top: 20px; border-radius: 0 4px 4px 0; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Новая заявка — Своим ходом</h2>
+  <div class="row"><div class="label">Имя</div><div class="value">${name}</div></div>
+  <div class="row"><div class="label">Email</div><div class="value"><a href="mailto:${email}">${email}</a></div></div>
+  <div class="row"><div class="label">Страна</div><div class="value">${country}</div></div>
+  <div class="row"><div class="label">Направление</div><div class="value">${destination}</div></div>
+  <div class="row"><div class="label">Даты</div><div class="value">${dates || "не указано"}</div></div>
+  <div class="row"><div class="label">Длительность</div><div class="value">${duration || "не указано"}</div></div>
+  <div class="row"><div class="label">Бюджет</div><div class="value">${budget}</div></div>
+  <div class="row"><div class="label">Путешественники</div><div class="value">${travelers}</div></div>
+  <div class="row"><div class="label">Стиль</div><div class="value">${travelStyle || "не указан"}</div></div>
+  <div class="row"><div class="label">Интересы</div><div class="value">${interests || "не указаны"}</div></div>
+  ${wishes ? `<div class="highlight"><strong>Пожелания:</strong> ${wishes}</div>` : ""}
+</div>
+</body>
+</html>`;
+
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resendApiKey}`,
+      },
+      body: JSON.stringify({
+        from: "Своим ходом Travel <onboarding@resend.dev>",
+        to: [adminEmail],
+        subject: `Новая заявка: ${name} → ${destination}`,
+        html: adminHtml,
+      }),
+    });
   }
 
   return NextResponse.json({ success: true });
