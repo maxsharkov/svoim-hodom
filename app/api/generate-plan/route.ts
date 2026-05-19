@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const data = await req.json();
 
@@ -18,7 +20,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "API keys not configured" }, { status: 500 });
   }
 
-  // --- GPT-4o: travel plan ---
   const prompt = `Ты — эксперт по осознанным путешествиям. Создай детальный персональный план путешествия.
 
 Путешественник: ${name} из ${country}
@@ -43,49 +44,32 @@ export async function POST(req: NextRequest) {
 Стиль: тёплый, интеллигентный, вдохновляющий. Не туристический буклет, а совет близкого друга.
 Формат: чистый HTML без <html><head><body> тегов. Используй заголовки h2/h3, параграфы p, списки ul/li.`;
 
-  let planHtml = "";
-
-  try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+  // --- Run GPT-4o and DALL-E in parallel ---
+  const [planResult, imageResult] = await Promise.allSettled([
+    // GPT-4o
+    fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiApiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiApiKey}` },
       body: JSON.stringify({
         model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 3000,
         temperature: 0.8,
       }),
-    });
+    }).then(async (res) => {
+      if (!res.ok) throw new Error(`OpenAI error ${res.status}: ${await res.text()}`);
+      const d = await res.json();
+      return d.choices[0].message.content
+        .replace(/^```html\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/```\s*$/i, "")
+        .trim();
+    }),
 
-    if (!aiRes.ok) {
-      const errBody = await aiRes.text();
-      console.error("OpenAI error:", aiRes.status, errBody);
-      throw new Error(`OpenAI error ${aiRes.status}: ${errBody}`);
-    }
-    const aiData = await aiRes.json();
-    planHtml = aiData.choices[0].message.content
-      .replace(/^```html\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-  } catch (err) {
-    console.error("Generate plan error:", err);
-    return NextResponse.json({ error: "Failed to generate plan", detail: String(err) }, { status: 500 });
-  }
-
-  // --- DALL-E 3: destination illustration ---
-  let imageUrl = "";
-
-  try {
-    const dalleRes = await fetch("https://api.openai.com/v1/images/generations", {
+    // DALL-E 3 → Vercel Blob
+    fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiApiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiApiKey}` },
       body: JSON.stringify({
         model: "dall-e-3",
         prompt: `Cinematic travel photography of ${destination}. Wide landscape, warm earthy tones, golden hour light, editorial style, no text, no people, no watermarks. Atmospheric and inspiring.`,
@@ -94,30 +78,33 @@ export async function POST(req: NextRequest) {
         quality: "standard",
         response_format: "url",
       }),
-    });
-
-    if (dalleRes.ok) {
-      const dalleData = await dalleRes.json();
-      const tempUrl = dalleData.data[0].url;
-
-      // Fetch image bytes and upload to Vercel Blob for a permanent URL
+    }).then(async (res) => {
+      if (!res.ok) throw new Error(`DALL-E error ${res.status}: ${await res.text()}`);
+      const d = await res.json();
+      const tempUrl = d.data[0].url;
       const imgRes = await fetch(tempUrl);
       const imgBuffer = await imgRes.arrayBuffer();
       const blob = await put(`travel/${Date.now()}.png`, Buffer.from(imgBuffer), {
         access: "public",
         contentType: "image/png",
       });
-      imageUrl = blob.url;
-    } else {
-      const err = await dalleRes.text();
-      console.error("DALL-E error:", dalleRes.status, err);
-    }
-  } catch (err) {
-    console.error("DALL-E exception:", err);
-    // Non-fatal — email sends without image
+      return blob.url;
+    }),
+  ]);
+
+  if (planResult.status === "rejected") {
+    console.error("GPT-4o error:", planResult.reason);
+    return NextResponse.json({ error: "Failed to generate plan", detail: String(planResult.reason) }, { status: 500 });
   }
 
-  // --- Build visual summary block ---
+  const planHtml = planResult.value;
+
+  if (imageResult.status === "rejected") {
+    console.error("DALL-E/Blob error:", imageResult.reason);
+  }
+  const imageUrl = imageResult.status === "fulfilled" ? imageResult.value : "";
+
+  // --- Visual summary block ---
   const styleTagsHtml = travelStyle
     ? travelStyle.split(",").map((s: string) =>
         `<span style="display:inline-block;border:1px solid #C4714A;color:#C4714A;font-size:11px;padding:3px 10px;margin:3px 4px 3px 0;letter-spacing:1px;text-transform:uppercase;">${s.trim()}</span>`
@@ -149,7 +136,7 @@ export async function POST(req: NextRequest) {
   ${styleTagsHtml ? `<div style="margin-top:12px;">${styleTagsHtml}</div>` : ""}
 </div>`;
 
-  // --- Build full email HTML ---
+  // --- Email HTML ---
   const emailHtml = `
 <!DOCTYPE html>
 <html lang="ru">
@@ -194,14 +181,11 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`;
 
-  // --- Send email to user ---
+  // --- Send to user ---
   try {
     const sendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${resendApiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendApiKey}` },
       body: JSON.stringify({
         from: "Своим ходом Travel <onboarding@resend.dev>",
         to: [email],
@@ -255,10 +239,7 @@ export async function POST(req: NextRequest) {
 
     await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${resendApiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendApiKey}` },
       body: JSON.stringify({
         from: "Своим ходом Travel <onboarding@resend.dev>",
         to: [adminEmail],
