@@ -65,7 +65,11 @@ export async function POST(req: NextRequest) {
       throw new Error(`OpenAI error ${aiRes.status}: ${errBody}`);
     }
     const aiData = await aiRes.json();
-    planHtml = aiData.choices[0].message.content;
+    planHtml = aiData.choices[0].message.content
+      .replace(/^```html\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
   } catch (err) {
     console.error("Generate plan error:", err);
     return NextResponse.json({ error: "Failed to generate plan", detail: String(err) }, { status: 500 });
@@ -85,7 +89,7 @@ export async function POST(req: NextRequest) {
         model: "dall-e-3",
         prompt: `Cinematic travel photography of ${destination}. Wide landscape, warm earthy tones, golden hour light, editorial style, no text, no people, no watermarks. Atmospheric and inspiring.`,
         n: 1,
-        size: "1792x1024",
+        size: "1024x1024",
         quality: "standard",
         response_format: "b64_json",
       }),
@@ -166,7 +170,7 @@ export async function POST(req: NextRequest) {
       <div class="accent"></div>
       <p>Ваш персональный маршрут</p>
     </div>
-    ${imageBase64 ? `<img src="cid:destination_image" style="width:100%;display:block;max-height:340px;object-fit:cover;" alt="${destination}">` : ""}
+    ${imageBase64 ? `<img src="data:image/png;base64,${imageBase64}" style="width:100%;display:block;max-height:340px;object-fit:cover;" alt="${destination}">` : ""}
     ${summaryHtml}
     <div class="content">
       <p class="greeting">Дорогой ${name},</p>
@@ -182,31 +186,18 @@ export async function POST(req: NextRequest) {
 
   // --- Send email to user ---
   try {
-    const emailPayload: Record<string, unknown> = {
-      from: "Своим ходом Travel <onboarding@resend.dev>",
-      to: [email],
-      subject: `Ваш персональный маршрут в ${destination} — Своим ходом`,
-      html: emailHtml,
-    };
-
-    if (imageBase64) {
-      emailPayload.attachments = [
-        {
-          filename: "destination.jpg",
-          content: imageBase64,
-          content_type: "image/png",
-          content_id: "destination_image",
-        },
-      ];
-    }
-
     const sendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${resendApiKey}`,
       },
-      body: JSON.stringify(emailPayload),
+      body: JSON.stringify({
+        from: "Своим ходом Travel <onboarding@resend.dev>",
+        to: [email],
+        subject: `Ваш персональный маршрут в ${destination} — Своим ходом`,
+        html: emailHtml,
+      }),
     });
 
     if (!sendRes.ok) {
