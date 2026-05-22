@@ -30,7 +30,7 @@ export default function HowItWorks() {
           <div className="w-12 h-px bg-[#D6CCB8] mt-6" />
         </div>
 
-        <div className="flex flex-col gap-14 md:gap-16">
+        <div className="flex flex-col gap-8 md:gap-10">
           {steps.map((step) => (
             <div key={step.number} className="flex flex-col md:flex-row gap-8 items-start">
               <div className="flex-shrink-0">

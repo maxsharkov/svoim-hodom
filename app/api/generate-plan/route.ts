@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         .trim();
     }),
 
-    // DALL-E 3 → Vercel Blob
+    // DALL-E 3 → try Vercel Blob, fallback to direct URL
     fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiApiKey}` },
@@ -79,16 +79,30 @@ export async function POST(req: NextRequest) {
         response_format: "url",
       }),
     }).then(async (res) => {
-      if (!res.ok) throw new Error(`DALL-E error ${res.status}: ${await res.text()}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("DALL-E API error:", res.status, errText);
+        throw new Error(`DALL-E error ${res.status}: ${errText}`);
+      }
       const d = await res.json();
       const tempUrl = d.data[0].url;
-      const imgRes = await fetch(tempUrl);
-      const imgBuffer = await imgRes.arrayBuffer();
-      const blob = await put(`travel/${Date.now()}.png`, Buffer.from(imgBuffer), {
-        access: "public",
-        contentType: "image/png",
-      });
-      return blob.url;
+      console.log("DALL-E URL received:", tempUrl.slice(0, 80));
+
+      // Try uploading to Blob for permanent URL
+      try {
+        const imgRes = await fetch(tempUrl);
+        const imgBuffer = await imgRes.arrayBuffer();
+        const blob = await put(`travel/${Date.now()}.png`, Buffer.from(imgBuffer), {
+          access: "public",
+          contentType: "image/png",
+        });
+        console.log("Blob URL:", blob.url);
+        return blob.url;
+      } catch (blobErr) {
+        // Blob failed — use DALL-E URL directly (valid ~1h, enough for email delivery)
+        console.error("Blob upload failed, using DALL-E URL:", blobErr);
+        return tempUrl;
+      }
     }),
   ]);
 
@@ -100,9 +114,10 @@ export async function POST(req: NextRequest) {
   const planHtml = planResult.value;
 
   if (imageResult.status === "rejected") {
-    console.error("DALL-E/Blob error:", imageResult.reason);
+    console.error("DALL-E failed entirely:", imageResult.reason);
   }
   const imageUrl = imageResult.status === "fulfilled" ? imageResult.value : "";
+  console.log("Final imageUrl:", imageUrl ? imageUrl.slice(0, 80) : "EMPTY");
 
   // --- Visual summary block ---
   const styleTagsHtml = travelStyle
@@ -123,10 +138,10 @@ export async function POST(req: NextRequest) {
         <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Длительность</div>
         <div style="font-size:14px;color:#2C1F14;">${duration}</div>
       </td>` : ""}
-      <td style="padding:8px 20px 8px 0;vertical-align:top;">
+      ${budget ? `<td style="padding:8px 20px 8px 0;vertical-align:top;">
         <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Бюджет</div>
         <div style="font-size:14px;color:#2C1F14;">${budget}</div>
-      </td>
+      </td>` : ""}
       <td style="padding:8px 0;vertical-align:top;">
         <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Путешественники</div>
         <div style="font-size:14px;color:#2C1F14;">${travelers}</div>
