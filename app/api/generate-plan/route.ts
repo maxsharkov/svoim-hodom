@@ -66,23 +66,22 @@ export async function POST(req: NextRequest) {
         .trim();
     }),
 
-    // DALL-E 3 → try Vercel Blob, fallback to direct URL
+    // DALL-E 2 → try Vercel Blob, fallback to direct URL
     fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiApiKey}` },
       body: JSON.stringify({
-        model: "dall-e-3",
-        prompt: `Cinematic travel photography of ${destination}. Wide landscape, warm earthy tones, golden hour light, editorial style, no text, no people, no watermarks. Atmospheric and inspiring.`,
+        model: "dall-e-2",
+        prompt: `Cinematic travel photo of ${destination}, wide landscape, warm golden light, no people, no text`,
         n: 1,
-        size: "1792x1024",
-        quality: "standard",
+        size: "1024x1024",
         response_format: "url",
       }),
     }).then(async (res) => {
       if (!res.ok) {
         const errText = await res.text();
-        console.error("DALL-E API error:", res.status, errText);
-        throw new Error(`DALL-E error ${res.status}: ${errText}`);
+        console.error("DALLE2 status:", res.status, "body:", errText.slice(0, 300));
+        throw new Error(`DALL-E error ${res.status}`);
       }
       const d = await res.json();
       const tempUrl = d.data[0].url;
@@ -130,8 +129,12 @@ export async function POST(req: NextRequest) {
 <div style="background:#F5F0EB;padding:24px 40px;border-top:2px solid #C4714A;">
   <table style="width:100%;border-collapse:collapse;">
     <tr>
+      <td style="padding:8px 20px 8px 0;vertical-align:top;">
+        <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Направление</div>
+        <div style="font-size:14px;color:#2C1F14;">${destination}</div>
+      </td>
       ${dates ? `<td style="padding:8px 20px 8px 0;vertical-align:top;">
-        <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Даты</div>
+        <div style="font-size:10px;color:#8B7355;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Когда</div>
         <div style="font-size:14px;color:#2C1F14;">${dates}</div>
       </td>` : ""}
       ${duration ? `<td style="padding:8px 20px 8px 0;vertical-align:top;">
