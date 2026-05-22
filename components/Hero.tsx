@@ -16,15 +16,6 @@ export default function Hero() {
       <div className="absolute inset-0 bg-gradient-to-b from-[#0F0A07]/60 via-[#0F0A07]/20 to-[#0F0A07]/80" />
 
       <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="text-white/60 text-sm tracking-[0.3em] uppercase mb-6"
-        >
-          Осознанные путешествия
-        </motion.p>
-
         <motion.h1
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
