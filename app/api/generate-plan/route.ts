@@ -66,43 +66,27 @@ export async function POST(req: NextRequest) {
         .trim();
     }),
 
-    // DALL-E 2 → try Vercel Blob, fallback to direct URL
-    fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiApiKey}` },
-      body: JSON.stringify({
-        model: "dall-e-2",
-        prompt: `Cinematic travel photo of ${destination}, wide landscape, warm golden light, no people, no text`,
-        n: 1,
-        size: "1024x1024",
-        response_format: "url",
-      }),
-    }).then(async (res) => {
+    // Unsplash: real travel photography by destination
+    (async () => {
+      const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
+      if (!unsplashKey) throw new Error("No UNSPLASH_ACCESS_KEY");
+
+      const query = encodeURIComponent(`${destination} travel landscape`);
+      const res = await fetch(
+        `https://api.unsplash.com/search/photos?query=${query}&orientation=landscape&per_page=3&order_by=relevant`,
+        { headers: { Authorization: `Client-ID ${unsplashKey}` } }
+      );
       if (!res.ok) {
-        const errText = await res.text();
-        console.error("DALLE2 status:", res.status, "body:", errText.slice(0, 300));
-        throw new Error(`DALL-E error ${res.status}`);
+        const err = await res.text();
+        console.error("Unsplash error:", res.status, err.slice(0, 200));
+        throw new Error(`Unsplash error ${res.status}`);
       }
       const d = await res.json();
-      const tempUrl = d.data[0].url;
-      console.log("DALL-E URL received:", tempUrl.slice(0, 80));
-
-      // Try uploading to Blob for permanent URL
-      try {
-        const imgRes = await fetch(tempUrl);
-        const imgBuffer = await imgRes.arrayBuffer();
-        const blob = await put(`travel/${Date.now()}.png`, Buffer.from(imgBuffer), {
-          access: "public",
-          contentType: "image/png",
-        });
-        console.log("Blob URL:", blob.url);
-        return blob.url;
-      } catch (blobErr) {
-        // Blob failed — use DALL-E URL directly (valid ~1h, enough for email delivery)
-        console.error("Blob upload failed, using DALL-E URL:", blobErr);
-        return tempUrl;
-      }
-    }),
+      if (!d.results?.length) throw new Error("Unsplash: no results");
+      const photo = d.results[0];
+      console.log("Unsplash photo:", photo.urls.regular.slice(0, 80));
+      return photo.urls.regular + "&w=1200&q=85";
+    })(),
   ]);
 
   if (planResult.status === "rejected") {
