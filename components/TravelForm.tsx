@@ -237,7 +237,7 @@ export default function TravelForm() {
                       key={m}
                       type="button"
                       onClick={() => update("month", data.month === m ? "" : m)}
-                      className={`${pillBase} ${data.month === m ? pillActiveDark : pillIdle} ${m === "Гибко" ? "col-span-2 sm:col-span-2" : ""}`}
+                      className={`${pillBase} ${data.month === m ? pillActiveDark : pillIdle} ${m === "Гибко" ? "col-span-4 sm:col-span-6" : ""}`}
                     >
                       {m}
                     </button>

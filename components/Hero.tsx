@@ -40,7 +40,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 1 }}
           className="text-white/70 text-sm leading-relaxed max-w-xl mx-auto mb-10"
         >
-          Искусственный интеллект анализирует ваши желания и создаёт персональный маршрут — глубокий, осмысленный, только ваш.
+          Искусственный интеллект создаёт персональный маршрут — под ваш ритм, интересы и желания.
         </motion.p>
 
         <motion.div

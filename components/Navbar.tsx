@@ -17,7 +17,6 @@ export default function Navbar() {
   const links = [
     { label: "Как это работает", href: "#how" },
     { label: "Направления", href: "#destinations" },
-    { label: "О нас", href: "#about" },
   ];
 
   return (
@@ -58,7 +57,7 @@ export default function Navbar() {
             color: scrolled ? "#2C1F14" : "white",
           }}
         >
-          Получить план
+          Моё путешествие
         </a>
 
         <button
@@ -91,7 +90,7 @@ export default function Navbar() {
             onClick={() => setMenuOpen(false)}
             className="text-sm tracking-widest uppercase text-[#C4714A] border border-[#C4714A] px-4 py-2 text-center"
           >
-            Получить план
+            Моё путешествие
           </a>
         </motion.div>
       )}

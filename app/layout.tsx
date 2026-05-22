@@ -15,10 +15,10 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Своим ходом — осознанные путешествия с AI",
-  description: "Персональный план путешествия, созданный искусственным интеллектом специально для вас. Осознанный туризм нового поколения.",
+  title: "Своим ходом — персональные путешествия с AI",
+  description: "Персональный план путешествия, созданный искусственным интеллектом специально для вас.",
   openGraph: {
-    title: "Своим ходом — осознанные путешествия с AI",
+    title: "Своим ходом — персональные путешествия с AI",
     description: "Персональный план путешествия, созданный AI специально для вас",
     type: "website",
   },
@@ -31,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className="h-full">
-      <body className={`${inter.variable} ${cormorant.variable} font-sans min-h-full`}>
+      <body className={`${inter.variable} ${cormorant.variable} font-heading min-h-full`}>
         {children}
       </body>
     </html>
