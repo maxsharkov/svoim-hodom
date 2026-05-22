@@ -10,7 +10,8 @@ type FormData = {
   destination: string;
   month: string;
   travelers: string;
-  interests: string;
+  interests: string[];
+  wishes: string;
 };
 
 const initialData: FormData = {
@@ -19,7 +20,8 @@ const initialData: FormData = {
   destination: "",
   month: "",
   travelers: "",
-  interests: "",
+  interests: [],
+  wishes: "",
 };
 
 const months = [
@@ -30,11 +32,13 @@ const months = [
 ];
 
 const travelerOptions = [
-  { id: "solo", label: "Соло" },
-  { id: "couple", label: "Пара" },
-  { id: "friends", label: "Группа друзей" },
-  { id: "family_kids", label: "Семья с детьми" },
-  { id: "family", label: "Семья без детей" },
+  "Соло", "Пара", "Группа друзей", "Семья с детьми", "Семья без детей",
+];
+
+const interestOptions = [
+  "Природа", "Пляжи", "Горы и трекинг", "Гастрономия",
+  "Архитектура", "История", "Медленный темп", "Фотография",
+  "Духовные практики", "Ночная жизнь", "Шоппинг", "Искусство",
 ];
 
 export default function TravelForm() {
@@ -44,12 +48,22 @@ export default function TravelForm() {
   const update = (field: keyof FormData, value: string) =>
     setData((prev) => ({ ...prev, [field]: value }));
 
+  const toggleInterest = (item: string) => {
+    setData((prev) => ({
+      ...prev,
+      interests: prev.interests.includes(item)
+        ? prev.interests.filter((i) => i !== item)
+        : [...prev.interests, item],
+    }));
+  };
+
   useEffect(() => {
-    const handler = (e: CustomEvent<{ destination: string; month: string }>) => {
+    const handler = (e: CustomEvent<{ destination: string; month: string; wishes: string }>) => {
       setData((prev) => ({
         ...prev,
         destination: e.detail.destination,
         month: e.detail.month,
+        wishes: e.detail.wishes || prev.wishes,
       }));
     };
     window.addEventListener("prefill-destination", handler as EventListener);
@@ -71,12 +85,12 @@ export default function TravelForm() {
           destination: data.destination,
           dates: data.month,
           travelers: data.travelers,
-          interests: data.interests,
+          interests: data.interests.join(", "),
           country: "",
           duration: "",
           budget: "",
           travelStyle: "",
-          wishes: "",
+          wishes: data.wishes,
         }),
       });
       if (!res.ok) throw new Error("Server error");
@@ -90,7 +104,12 @@ export default function TravelForm() {
   const inputClass =
     "w-full bg-transparent border-b border-[#D6CCB8] py-3 text-[#2C1F14] placeholder-[#B0A090] text-sm focus:outline-none focus:border-[#8B7355] transition-colors";
 
-  const labelClass = "block text-xs tracking-widest uppercase text-[#8B7355] mb-2";
+  const labelClass = "block text-xs tracking-widest uppercase text-[#8B7355] mb-3";
+
+  const pillBase = "w-full py-2.5 text-xs tracking-wider border transition-all duration-200 text-center";
+  const pillIdle = "border-[#D6CCB8] text-[#6B5B4E] hover:border-[#8B7355]";
+  const pillActiveDark = "bg-[#2C1F14] border-[#2C1F14] text-white";
+  const pillActiveTerra = "bg-[#C4714A] border-[#C4714A] text-white";
 
   return (
     <section id="form" className="py-24 md:py-32 px-6 bg-[#F5F0EB]">
@@ -209,20 +228,16 @@ export default function TravelForm() {
                 />
               </div>
 
-              {/* Month */}
+              {/* Month — 4-col grid for equal sizing */}
               <div>
                 <label className={labelClass}>Когда планируете</label>
-                <div className="flex flex-wrap gap-2 mt-1">
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {months.map((m) => (
                     <button
                       key={m}
                       type="button"
                       onClick={() => update("month", data.month === m ? "" : m)}
-                      className={`px-4 py-2 text-xs tracking-wider border transition-all duration-200 ${
-                        data.month === m
-                          ? "bg-[#2C1F14] border-[#2C1F14] text-white"
-                          : "border-[#D6CCB8] text-[#6B5B4E] hover:border-[#8B7355]"
-                      }`}
+                      className={`${pillBase} ${data.month === m ? pillActiveDark : pillIdle} ${m === "Гибко" ? "col-span-2 sm:col-span-2" : ""}`}
                     >
                       {m}
                     </button>
@@ -230,36 +245,47 @@ export default function TravelForm() {
                 </div>
               </div>
 
-              {/* Travelers */}
+              {/* Travelers — 3-col grid */}
               <div>
                 <label className={labelClass}>Кто едет</label>
-                <div className="flex flex-wrap gap-2 mt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {travelerOptions.map((t) => (
                     <button
-                      key={t.id}
+                      key={t}
                       type="button"
-                      onClick={() => update("travelers", data.travelers === t.label ? "" : t.label)}
-                      className={`px-5 py-2.5 text-xs tracking-wider border transition-all duration-200 ${
-                        data.travelers === t.label
-                          ? "bg-[#C4714A] border-[#C4714A] text-white"
-                          : "border-[#D6CCB8] text-[#6B5B4E] hover:border-[#8B7355]"
-                      }`}
+                      onClick={() => update("travelers", data.travelers === t ? "" : t)}
+                      className={`${pillBase} ${data.travelers === t ? pillActiveTerra : pillIdle}`}
                     >
-                      {t.label}
+                      {t}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Interests */}
+              {/* Interests — 3-col grid + free text */}
               <div>
                 <label className={labelClass}>Что важно для вас</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6">
+                  {interestOptions.map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => toggleInterest(item)}
+                      className={`${pillBase} ${data.interests.includes(item) ? pillActiveTerra : pillIdle}`}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+                <label className="block text-xs tracking-widest uppercase text-[#8B7355] mb-2">
+                  Любые другие пожелания
+                </label>
                 <textarea
                   className={`${inputClass} resize-none`}
-                  rows={3}
-                  placeholder="Природа, гастрономия, архитектура, медленный темп, пляжи..."
-                  value={data.interests}
-                  onChange={(e) => update("interests", e.target.value)}
+                  rows={2}
+                  placeholder="Что особенного хотите увидеть или избежать?"
+                  value={data.wishes}
+                  onChange={(e) => update("wishes", e.target.value)}
                 />
               </div>
 

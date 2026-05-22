@@ -8,33 +8,49 @@ const destinations = [
     tagline: "Сакура, храмы, токийские переулки",
     label: "Культура и медленная жизнь",
     image: "https://images.unsplash.com/photo-1528360983277-13d401cdc186?q=80&w=1470&auto=format&fit=crop",
-    prefill: { destination: "Япония", month: "Апрель" },
+    prefill: {
+      destination: "Япония",
+      month: "Апрель",
+      wishes: "Хочу увидеть цветение сакуры, побывать в традиционных рёканах и попробовать уличную еду на рынках Токио и Киото",
+    },
   },
   {
     name: "Итальянское побережье",
     tagline: "Амальфи, виноградники, морской воздух",
     label: "Гастрономия и море",
     image: "https://images.unsplash.com/photo-1555990793-da11153b2473?q=80&w=1471&auto=format&fit=crop",
-    prefill: { destination: "Италия, Амальфийское побережье", month: "Июнь" },
+    prefill: {
+      destination: "Италия, Амальфийское побережье",
+      month: "Июнь",
+      wishes: "Хочу медленно исследовать прибрежные деревни, пробовать местные вина и морепродукты, избегать туристических толп",
+    },
   },
   {
     name: "Перу",
     tagline: "Мачу-Пикчу, Анды, Амазония",
     label: "Природа и приключения",
     image: "https://images.unsplash.com/photo-1526392060635-9d6019884377?q=80&w=1470&auto=format&fit=crop",
-    prefill: { destination: "Перу", month: "Сентябрь" },
+    prefill: {
+      destination: "Перу",
+      month: "Сентябрь",
+      wishes: "Хочу посетить Мачу-Пикчу, пройти треккинг в Андах и заглянуть на несколько дней в Амазонию",
+    },
   },
   {
     name: "Марокко",
     tagline: "Медины, пустыня Сахара, горы Атлас",
     label: "Культура и экзотика",
     image: "https://images.unsplash.com/photo-1609220136736-443140cffec6?q=80&w=1470&auto=format&fit=crop",
-    prefill: { destination: "Марокко", month: "Март" },
+    prefill: {
+      destination: "Марокко",
+      month: "Март",
+      wishes: "Хочу погрузиться в атмосферу старых медин, провести ночь в пустыне Сахара и увидеть горы Атлас",
+    },
   },
 ];
 
 export default function Destinations() {
-  const handleClick = (prefill: { destination: string; month: string }) => {
+  const handleClick = (prefill: { destination: string; month: string; wishes: string }) => {
     window.dispatchEvent(new CustomEvent("prefill-destination", { detail: prefill }));
     const el = document.getElementById("form");
     if (el) el.scrollIntoView({ behavior: "smooth" });
